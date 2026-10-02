@@ -14,38 +14,12 @@ dotenv.config();
 
 const app = express();
 
-// ========================================
+// ============================================
 // CORS
-// ========================================
-
-const allowedOrigins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-    "https://quizsoftware.vercel.app",
-];
+// ============================================
 
 const corsOptions = {
-    origin: function (origin, callback) {
-        // Allow Postman, server-to-server and requests
-        // without an Origin header
-        if (!origin) {
-            return callback(null, true);
-        }
-
-        if (allowedOrigins.includes(origin)) {
-            return callback(null, true);
-        }
-
-        console.log("❌ CORS blocked:", origin);
-
-        return callback(new Error("Not allowed by CORS"));
-    },
-
-    credentials: true,
+    origin: "https://quizsoftware.vercel.app",
 
     methods: [
         "GET",
@@ -57,55 +31,50 @@ const corsOptions = {
     ],
 
     allowedHeaders: [
+        "Content-Type",
+        "Authorization",
+        "Accept",
         "Origin",
         "X-Requested-With",
-        "Content-Type",
-        "Accept",
-        "Authorization",
     ],
+
+    credentials: true,
+
+    optionsSuccessStatus: 204,
 };
 
-// Apply CORS BEFORE routes
 app.use(cors(corsOptions));
 
-// Explicit OPTIONS handler
-app.options("*", cors(corsOptions));
 
-
-// ========================================
-// BODY PARSER
-// ========================================
+// ============================================
+// JSON
+// ============================================
 
 app.use(express.json());
 
 
-// ========================================
-// ROOT
-// ========================================
+// ============================================
+// TEST
+// ============================================
 
 app.get("/", (req, res) => {
-    res.status(200).json({
+    res.json({
         success: true,
-        message: "Quiz System API is running...",
+        message: "Quiz System API is running",
     });
 });
 
-
-// ========================================
-// TEST
-// ========================================
-
 app.get("/api/test", (req, res) => {
-    res.status(200).json({
+    res.json({
         success: true,
         message: "API working fine",
     });
 });
 
 
-// ========================================
-// API ROUTES
-// ========================================
+// ============================================
+// ROUTES
+// ============================================
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
@@ -115,32 +84,25 @@ app.use("/api/submissions", submissionRoutes);
 app.use("/api/results", resultRoutes);
 
 
-// ========================================
+// ============================================
 // 404
-// ========================================
+// ============================================
 
 app.use((req, res) => {
     res.status(404).json({
         success: false,
-        message: "API route not found",
+        message: "Route not found",
         path: req.originalUrl,
     });
 });
 
 
-// ========================================
+// ============================================
 // ERROR HANDLER
-// ========================================
+// ============================================
 
 app.use((err, req, res, next) => {
-    console.error("❌ Server Error:", err);
-
-    if (err.message === "Not allowed by CORS") {
-        return res.status(403).json({
-            success: false,
-            message: "CORS error",
-        });
-    }
+    console.error("SERVER ERROR:", err);
 
     res.status(500).json({
         success: false,
@@ -150,37 +112,36 @@ app.use((err, req, res, next) => {
 });
 
 
-// ========================================
-// DATABASE CONNECTION
-// ========================================
+// ============================================
+// DATABASE
+// ============================================
 
-let isConnected = false;
+let dbConnected = false;
 
-const connectDatabase = async () => {
-    if (isConnected) {
+async function initializeDatabase() {
+    if (dbConnected) {
         return;
     }
 
     await connectDB();
 
-    isConnected = true;
+    dbConnected = true;
 
-    console.log("✅ Database connected");
-};
+    console.log("MongoDB connected");
+}
 
 
-// ========================================
-// VERCEL SERVERLESS HANDLER
-// ========================================
+// ============================================
+// VERCEL HANDLER
+// ============================================
 
-module.exports = async (req, res) => {
+const handler = async (req, res) => {
     try {
-        await connectDatabase();
+        await initializeDatabase();
 
         return app(req, res);
     } catch (error) {
-        console.error("❌ Database connection failed:");
-        console.error(error);
+        console.error("DATABASE ERROR:", error);
 
         return res.status(500).json({
             success: false,
@@ -190,33 +151,26 @@ module.exports = async (req, res) => {
     }
 };
 
+module.exports = handler;
 
-// ========================================
+
+// ============================================
 // LOCAL DEVELOPMENT
-// ========================================
+// ============================================
 
 if (process.env.NODE_ENV !== "production") {
     const PORT = process.env.PORT || 5001;
-    const HOST = process.env.HOST || "127.0.0.1";
 
-    connectDatabase()
+    initializeDatabase()
         .then(() => {
-            app.listen(PORT, HOST, () => {
-                console.log("\n-----------------------------------");
-                console.log("🚀 Quiz System API is running");
-                console.log(`🌐 Local: http://${HOST}:${PORT}`);
+            app.listen(PORT, () => {
                 console.log(
-                    `🧪 Test: http://${HOST}:${PORT}/api/test`
+                    `Quiz System API running on http://localhost:${PORT}`
                 );
-                console.log("-----------------------------------\n");
             });
         })
         .catch((error) => {
-            console.error(
-                "❌ MongoDB connection failed:",
-                error.message
-            );
-
+            console.error(error);
             process.exit(1);
         });
 }
